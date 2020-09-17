@@ -90,11 +90,13 @@ atomic<double> dFrequencyOutput = 0.0;
 double dOctaveBaseFrequency = 110.0;
 double d12thRootOf2 = pow(2.0, 1.0 / 12.0);
 
-sEnvelopeADSR envelope(0.0, 0.1, 1.0, 0.1);
+sEnvelopeADSR envelope(0.0, 0.0, 0.5, 0.5);
+//sEnvelopeADSR envelope(0.5, 0.2, 0.5, 1.0);
 
 double makeNoise(double dTime);
 double w(double dHertz);
-double oscilator(double dHertz, double dTime, OSC nType);
+double oscilator(double dHertz, double dTime, OSC nType, double dLFOHertz = 0.0,
+                 double dLFOAmplitude = 0.0);
 
 int main() {
   std::wcout << "Michael Henrique - Synthesizer" << std::endl;
@@ -156,23 +158,25 @@ int main() {
 
 double w(double dHertz) { return 2.0 * PI * dHertz; }
 
-double oscilator(double dHertz, double dTime, OSC nType) {
+double oscilator(double dHertz, double dTime, OSC nType, double dLFOHertz,
+                 double dLFOAmplitude) {
+  double dFreq = w(dHertz) * dTime + dLFOAmplitude * sin(w(dLFOHertz) * dTime);
+
   switch (nType) {
     case OSC::SINE:  // Sine wave bewteen -1 and +1
-      return sin(w(dHertz) * dTime);
+      return sin(dFreq);
 
     case OSC::SQUARE:  // Square wave between -1 and +1
-      return sin(w(dHertz) * dTime) > 0 ? 1.0 : -1.0;
+      return sin(dFreq) > 0 ? 1.0 : -1.0;
 
     case OSC::TRIANGLE:  // Triangle wave between -1 and +1
-      return asin(sin(w(dHertz) * dTime)) * (2.0 / PI);
+      return asin(sin(dFreq)) * (2.0 / PI);
 
     case OSC::SAW_ANALOG:  // Saw wave (analogue / warm / slow)
     {
       double dOutput = 0.0;
 
-      for (double n = 1.0; n < 100.0; n++)
-        dOutput += (sin(n * w(dHertz) * dTime)) / n;
+      for (double n = 1.0; n < 100.0; n++) dOutput += (sin(n * dFreq)) / n;
 
       return dOutput * (2.0 / PI);
     }
@@ -190,6 +194,13 @@ double oscilator(double dHertz, double dTime, OSC nType) {
 }
 
 double makeNoise(double dTime) {
+  // return envelope.GetAmplitude(dTime) *
+  //      (oscilator(dFrequencyOutput * 1.5, dTime, OSC::SAW_DIGITAL,
+  //                 dFrequencyOutput * 0.001, 1.5) +
+  //       oscilator(dFrequencyOutput * 1.0, dTime, OSC::SINE,
+  //                 dFrequencyOutput * 0.005, 0.5));
+
   return envelope.GetAmplitude(dTime) *
-         oscilator(dFrequencyOutput, dTime, OSC::SAW_ANALOG);
+         (oscilator(dFrequencyOutput * 1.5, dTime, OSC::SAW_ANALOG, 5.0, 0.1) +
+          oscilator(dFrequencyOutput * 1.0, dTime, OSC::SQUARE, 5.0, 0.1));
 }
